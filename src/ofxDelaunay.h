@@ -48,6 +48,8 @@ public:
 	
     ofMesh triangleMesh; //output of triangulate();
 
+    const vector<XYZI>& getVertices() const { return vertices; }
+    const vector<ITRIANGLE>& getTriangles() const { return triangles; }
 
 private:
 
