@@ -49,6 +49,7 @@ private:
 
 	ofParameterGroup gSettings;
 	ofParameter<float> gPercentage;
+	ofParameter<bool> gCPUGPU;
 	
 	std::shared_ptr<ofFbo> mFbo;
 	std::shared_ptr<ofShader> mShader;
@@ -62,6 +63,9 @@ private:
 	ofBufferObject particleBuffer;
 	std::vector<int> mIndices;
 	ofBufferObject indicesBuffer;
+
+	ofBufferObject atomicCounter;
+	std::shared_ptr<ofShader> delaunayShader;
 
 	std::shared_ptr<ofxDelaunay> triangulation;
 };

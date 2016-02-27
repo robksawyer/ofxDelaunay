@@ -47,6 +47,7 @@ void ofApp::setup(){
 
 		gSettings.setName("Settings");
 		gSettings.add(gPercentage.set("Percentage", 2.0f, 0.1f, 2.0f));
+		gSettings.add(gCPUGPU.set("CPU / GPU", false));
         
         mGui = shared_ptr<ofxGuiGroup>(new ofxGuiGroup);
         mGui->setup("GUI");
@@ -83,12 +84,20 @@ void ofApp::setup(){
 		mVbo->setColorBuffer(particleBuffer, sizeof(Particle), sizeof(ofVec4f) * 1);
 		mVbo->setNormalBuffer(particleBuffer, sizeof(Particle), sizeof(ofVec4f) * 2);
 		mVbo->setIndexBuffer(indicesBuffer);
-
-		particleBuffer.bindBase(GL_SHADER_STORAGE_BUFFER, 0);
 	}
 
 	{
 		triangulation = shared_ptr<ofxDelaunay>(new ofxDelaunay);
+	}
+
+	{
+		vector<int> dummy = {0};
+		atomicCounter.allocate();
+		atomicCounter.setData(sizeof(int) * dummy.size(), &dummy.front(), GL_DYNAMIC_DRAW);
+		atomicCounter.bindBase(GL_ATOMIC_COUNTER_BUFFER, 0);
+
+		particleBuffer.bindBase(GL_SHADER_STORAGE_BUFFER, 0);
+		indicesBuffer.bindBase(GL_SHADER_STORAGE_BUFFER, 1);
 	}
 
 	loadShaders();
@@ -116,26 +125,36 @@ void ofApp::update(){
 		mParticles.emplace_back(p);
 	}
 	particleBuffer.updateData(mParticles);
+	size_t num_indices = 0;
 
-	if (mParticles.size() < 5000)
+	if (!gCPUGPU)
 	{
 		triangulation->reset();
 		for (auto& p : mParticles)
 			triangulation->addPoint(p.pos);
-#if 0
-		triangulation->triangulate();
-
-		mIndices.clear();
-		for (auto& i : triangulation->triangleMesh.getIndices())
-			mIndices.emplace_back(i);
-#else
 		mIndices.clear();
 		mIndices = triangulation->getTriangulatedIndices();
-#endif
 		indicesBuffer.updateData(mIndices);
-	}
 
-	cout << mVbo->getNumVertices() << " : " << mParticles.size() << " : " << mIndices.size() << endl;
+		num_indices = mIndices.size();
+	}
+	else
+	{
+		vector<int> dummy = { 0 };
+		atomicCounter.updateData(sizeof(int) * dummy.size(), &dummy.front());
+
+		delaunayShader->begin();
+		delaunayShader->setUniform1i("uNumVertices", mParticles.size());
+		delaunayShader->dispatchCompute(1, 1, 1);
+		delaunayShader->end();
+
+		auto* atomic = atomicCounter.map<int>(GL_READ_ONLY);
+		num_indices = atomic[0];
+		atomicCounter.unmap();
+	}
+	
+
+	cout << mVbo->getNumVertices() << " : " << mParticles.size() << " : " << num_indices << endl;
 
 	ofEnableDepthTest();
 	ofPushStyle();
@@ -162,11 +181,11 @@ void ofApp::update(){
 
 	ofEnableBlendMode(OF_BLENDMODE_ALPHA);
 	ofFill();
-	mVbo->drawElements(GL_TRIANGLES, mIndices.size());
+	mVbo->drawElements(GL_TRIANGLES, num_indices);
 
 	ofEnableBlendMode(OF_BLENDMODE_ADD);
 	ofNoFill();
-	mVbo->drawElements(GL_TRIANGLES, mIndices.size());
+	mVbo->drawElements(GL_TRIANGLES, num_indices);
 
 	ofPopMatrix();
 
@@ -277,4 +296,9 @@ void ofApp::loadShaders()
 	mShader->setupShaderFromFile(GL_VERTEX_SHADER, "shaders/basic.vert");
 	mShader->setupShaderFromFile(GL_FRAGMENT_SHADER, "shaders/basic.frag");
 	mShader->linkProgram();
+
+	delaunayShader.reset();
+	delaunayShader = shared_ptr<ofShader>(new ofShader);
+	delaunayShader->setupShaderFromFile(GL_COMPUTE_SHADER, "shaders/delaunay.comp");
+	delaunayShader->linkProgram();
 }
