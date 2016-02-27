@@ -83,7 +83,7 @@ int CircumCircle(double xp, double yp, double x1, double y1, double x2,
 
 int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 {
-	int *complete = NULL;
+	//int *complete = NULL;
 	int nedge = 0;
 	int trimax, emax = 200;
 	int status = 0;
@@ -94,7 +94,8 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 
 	// Allocate memory for the completeness list, flag for each triangle
 	trimax = 4 * nv;
-	complete = new int[trimax];
+	//complete = new int[trimax];
+	vector<int> complete(trimax);
 	// Allocate memory for the edge list
 	vector<IEDGE> edges(emax);
 
@@ -277,7 +278,7 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 		}
 	}
 
-	delete[] complete;
+	//delete[] complete;
 	return 0;
 }
 
