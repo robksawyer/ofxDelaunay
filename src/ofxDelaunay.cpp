@@ -83,7 +83,7 @@ int ofxDelaunay::triangulate() {
 	//allocate space for triangle indices
 	triangles.resize(3 * nv);
 
-	Triangulate(nv, &verticesXYZ[0], &triangles[0], ntri);
+	Triangulate(nv, verticesXYZ, triangles, ntri);
 
 	//copy triangle data to ofxDelaunayTriangle.
 	triangleMesh.clear();
@@ -244,7 +244,7 @@ vector<int> ofxDelaunay::getTriangulatedIndices()
 	//allocate space for triangle indices
 	triangles.resize(3 * nv);
 
-	Triangulate(nv, &verticesXYZ[0], &triangles[0], ntri);
+	Triangulate(nv, verticesXYZ, triangles, ntri);
 
 	//copy triangles
 	for (int i = 0; i < ntri; i++) {

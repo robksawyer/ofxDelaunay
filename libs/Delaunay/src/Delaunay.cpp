@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <thread>
-#include <vector>
 
 using namespace std;
 
@@ -81,20 +80,14 @@ int CircumCircle(double xp, double yp, double x1, double y1, double x2,
 //   qsort(p,nv,sizeof(XYZ),XYZCompare);
 ///////////////////////////////////////////////////////////////////////////////
 
-int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
+int Triangulate(int nv, vector<XYZ>& pxyz, vector<ITRIANGLE>& v, int& ntri)
 {
-	//int *complete = NULL;
-	int nedge = 0;
 	int trimax, emax = 200;
-	int status = 0;
 
-	double xc, yc, r;
-	double xmin, xmax, ymin, ymax, xmid, ymid;
-	double dx, dy, dmax;
+	double xmin, xmax, ymin, ymax;
 
 	// Allocate memory for the completeness list, flag for each triangle
 	trimax = 4 * nv;
-	//complete = new int[trimax];
 	vector<int> complete(trimax);
 	// Allocate memory for the edge list
 	vector<IEDGE> edges(emax);
@@ -113,31 +106,31 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 		if (pxyz[i].y > ymax) ymax = pxyz[i].y;
 	}
 #else
-	auto x_minmax = std::minmax(pxyz, pxyz + nv - 1, [](const XYZ* v1, const XYZ* v2) { return (v1->x > v2->x); });
-	auto y_minmax = std::minmax(pxyz, pxyz + nv - 1, [](const XYZ* v1, const XYZ* v2) { return (v1->y > v2->y); });
+	auto x_minmax = std::minmax(pxyz.begin(), pxyz.data + nv - 1, [](const XYZ& v1, const XYZ& v2) { return (v1.x > v2.x); });
+	auto y_minmax = std::minmax(pxyz.begin(), pxyz.data + nv - 1, [](const XYZ& v1, const XYZ& v2) { return (v1.y > v2.y); });
 	xmin = x_minmax.first->x;
 	ymin = y_minmax.first->y;
 	xmax = x_minmax.second->x;
 	ymax = y_minmax.second->y;
 #endif
-	dx = xmax - xmin;
-	dy = ymax - ymin;
-	dmax = (dx > dy) ? dx : dy;
-	xmid = (xmax + xmin) / 2.0;
-	ymid = (ymax + ymin) / 2.0;
+	double dx = xmax - xmin;
+	double dy = ymax - ymin;
+	double dmax = (dx > dy) ? dx : dy;
+	double xmid = (xmax + xmin) / 2.0;
+	double ymid = (ymax + ymin) / 2.0;
 
 	// Set up the supertriangle
 	// This is a triangle which encompasses all the sample points.
 	// The supertriangle coordinates are added to the end of the
 	// vertex list. The supertriangle is the first triangle in
 	// the triangle list.
-	pxyz[nv + 0].x = xmid - 20 * dmax;
+	pxyz[nv + 0].x = xmid - 20.0 * dmax;
 	pxyz[nv + 0].y = ymid - dmax;
 	pxyz[nv + 0].z = 0.0;
 	pxyz[nv + 1].x = xmid;
-	pxyz[nv + 1].y = ymid + 20 * dmax;
+	pxyz[nv + 1].y = ymid + 20.0 * dmax;
 	pxyz[nv + 1].z = 0.0;
-	pxyz[nv + 2].x = xmid + 20 * dmax;
+	pxyz[nv + 2].x = xmid + 20.0 * dmax;
 	pxyz[nv + 2].y = ymid - dmax;
 	pxyz[nv + 0].z = 0.0;
 	v[0].p1 = nv;
@@ -150,9 +143,9 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 	// Include each point one at a time into the existing mesh
 	for (int i = 0; i < nv; i++) {
 		double xp, yp;
+		int nedge = 0;
 		xp = pxyz[i].x;
 		yp = pxyz[i].y;
-		nedge = 0;
 
 		// Set up the edge buffer.
 		// If the point (xp,yp) lies inside the circumcircle then the
@@ -168,7 +161,7 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 			y2 = pxyz[v[j].p2].y;
 			x3 = pxyz[v[j].p3].x;
 			y3 = pxyz[v[j].p3].y;
-			bool inside = CircumCircle(xp, yp, x1, y1, x2, y2, x3, y3, xc, yc, r);
+			int inside = CircumCircle(xp, yp, x1, y1, x2, y2, x3, y3, xc, yc, r);
 			//    if (xc + r < xp)
 
 			// Suggested
@@ -238,11 +231,11 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 			}
 		};
 		vector<std::thread> threads;
-		for (int j = 0; j < nedge - 1; j++) {
+		for (int j = 0; j < nedge - 1; j++)
 			threads.emplace_back(std::thread(checkEdge, j));
-		}
 		for (auto& t : threads)
 			t.join();
+		threads.clear();
 #endif
 
 		// Form new triangles for the current point
@@ -278,7 +271,6 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 		}
 	}
 
-	//delete[] complete;
 	return 0;
 }
 

@@ -14,6 +14,7 @@
 #include <stdlib.h> // for C qsort
 #include <cmath>
 #include <time.h> // for random
+#include <vector>
 
 const double EPSILON = 0.000001;
 
@@ -30,7 +31,7 @@ struct XYZ {
 };
 
 int XYZCompare(const void *v1, const void *v2);
-int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri);
+int Triangulate(int nv, std::vector<XYZ>& pxyz, std::vector<ITRIANGLE>& v, int& ntri);
 int CircumCircle(double, double, double, double, double, double, double,
 	double, double&, double&, double&);
 
