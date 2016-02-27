@@ -213,45 +213,39 @@ vector<int> ofxDelaunay::getTriangulatedIndices()
 {
 	vector<int> indices;
 
-	if (vertices.size() < 3) {
+	if (vertices.size() < 3U) {
 		return indices;
 	}
 
-	int nv = vertices.size();
+	size_t nv = vertices.size();
 
 	// make clone not to destroy vertices
 	//vector<XYZI> verticesTemp = vertices;
 	std::sort(vertices.begin(), vertices.end(), [](const XYZI& p1, const XYZI& p2) { return (p1.x < p2.x); });
 
 	//vertices required for Triangulate
-	vector<XYZ> verticesXYZ;
+	vector<XYZ> verticesXYZ(nv);
 
 	//copy XYZIs to XYZ
-	for (auto& vt : vertices)
-	{
-		XYZ v;
-		v.x = vt.x;
-		v.y = vt.y;
-		v.z = vt.z;
-		verticesXYZ.emplace_back(v);
-	}
+	for (size_t i = 0; i < nv; i++)
+		std::memcpy(&verticesXYZ[i], &vertices[i], sizeof(XYZ));
 
 	//add 3 emptly slots, required by the Triangulate call
-	verticesXYZ.emplace_back(XYZ());
-	verticesXYZ.emplace_back(XYZ());
-	verticesXYZ.emplace_back(XYZ());
+	verticesXYZ.push_back(XYZ());
+	verticesXYZ.push_back(XYZ());
+	verticesXYZ.push_back(XYZ());
 
 	//allocate space for triangle indices
-	triangles.resize(3 * nv);
+	triangles.resize(3U * nv);
 
 	Triangulate(nv, verticesXYZ, triangles, ntri);
 
 	//copy triangles
 	for (int i = 0; i < ntri; i++) {
-		auto& tri = triangles.at(i);
-		indices.emplace_back(vertices.at(tri.p1).i);
-		indices.emplace_back(vertices.at(tri.p2).i);
-		indices.emplace_back(vertices.at(tri.p3).i);
+		auto& tri = triangles[i];
+		indices.push_back(vertices[tri.p1].i);
+		indices.push_back(vertices[tri.p2].i);
+		indices.push_back(vertices[tri.p3].i);
 	}
 
 	return indices;

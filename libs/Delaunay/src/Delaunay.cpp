@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <thread>
+#include <array>
 
 using namespace std;
 
@@ -22,14 +23,14 @@ using namespace std;
 //   Note : A point on the edge is inside the circumcircle
 ////////////////////////////////////////////////////////////////////////
 
-int CircumCircle(double xp, double yp, double x1, double y1, double x2,
+bool CircumCircle(double xp, double yp, double x1, double y1, double x2,
 	double y2, double x3, double y3, double &xc, double &yc, double &r) {
 	double m1, m2, mx1, mx2, my1, my2;
 	double dx, dy, rsqr, drsqr;
 
 	// Check for coincident points
 	if (abs(y1 - y2) < EPSILON && abs(y2 - y3) < EPSILON)
-		return(false);
+		return false;
 
 	if (abs(y2 - y1) < EPSILON) {
 		m2 = -(x3 - x2) / (y3 - y2);
@@ -94,7 +95,6 @@ int Triangulate(int nv, vector<XYZ>& pxyz, vector<ITRIANGLE>& v, int& ntri)
 
 	// Find the maximum and minimum vertex bounds.
 	// This is to allow calculation of the bounding triangle
-#if 1
 	xmin = pxyz[0].x;
 	ymin = pxyz[0].y;
 	xmax = xmin;
@@ -105,14 +105,7 @@ int Triangulate(int nv, vector<XYZ>& pxyz, vector<ITRIANGLE>& v, int& ntri)
 		if (pxyz[i].y < ymin) ymin = pxyz[i].y;
 		if (pxyz[i].y > ymax) ymax = pxyz[i].y;
 	}
-#else
-	auto x_minmax = std::minmax(pxyz.begin(), pxyz.data + nv - 1, [](const XYZ& v1, const XYZ& v2) { return (v1.x > v2.x); });
-	auto y_minmax = std::minmax(pxyz.begin(), pxyz.data + nv - 1, [](const XYZ& v1, const XYZ& v2) { return (v1.y > v2.y); });
-	xmin = x_minmax.first->x;
-	ymin = y_minmax.first->y;
-	xmax = x_minmax.second->x;
-	ymax = y_minmax.second->y;
-#endif
+
 	double dx = xmax - xmin;
 	double dy = ymax - ymin;
 	double dmax = (dx > dy) ? dx : dy;
@@ -161,7 +154,7 @@ int Triangulate(int nv, vector<XYZ>& pxyz, vector<ITRIANGLE>& v, int& ntri)
 			y2 = pxyz[v[j].p2].y;
 			x3 = pxyz[v[j].p3].x;
 			y3 = pxyz[v[j].p3].y;
-			int inside = CircumCircle(xp, yp, x1, y1, x2, y2, x3, y3, xc, yc, r);
+			bool inside = CircumCircle(xp, yp, x1, y1, x2, y2, x3, y3, xc, yc, r);
 			//    if (xc + r < xp)
 
 			// Suggested
@@ -169,7 +162,8 @@ int Triangulate(int nv, vector<XYZ>& pxyz, vector<ITRIANGLE>& v, int& ntri)
 			if (xc < xp && ((xp - xc)*(xp - xc)) > r)
 				complete[j] = true;
 
-			if (inside) {
+			if (inside)
+			{
 				// Check that we haven't exceeded the edge list size
 				if (nedge + 3 >= emax) {
 					emax += 100;
@@ -193,7 +187,6 @@ int Triangulate(int nv, vector<XYZ>& pxyz, vector<ITRIANGLE>& v, int& ntri)
 		// Tag multiple edges
 		// Note: if all triangles are specified anticlockwise then all
 		// interior edges are opposite pointing in direction.
-#if 1
 		for (int j = 0; j < nedge - 1; j++) {
 			for (int k = j + 1; k < nedge; k++) {
 				if ((edges[j].p1 == edges[k].p2) && (edges[j].p2 == edges[k].p1)) {
@@ -211,32 +204,6 @@ int Triangulate(int nv, vector<XYZ>& pxyz, vector<ITRIANGLE>& v, int& ntri)
 				}
 			}
 		}
-#else
-		auto checkEdge = [&](const int& j)
-		{
-			for (int k = j + 1; k < nedge; k++) {
-				if ((edges[j].p1 == edges[k].p2) && (edges[j].p2 == edges[k].p1)) {
-					edges[j].p1 = -1;
-					edges[j].p2 = -1;
-					edges[k].p1 = -1;
-					edges[k].p2 = -1;
-				}
-				// Shouldn't need the following, see note above */
-				if ((edges[j].p1 == edges[k].p1) && (edges[j].p2 == edges[k].p2)) {
-					edges[j].p1 = -1;
-					edges[j].p2 = -1;
-					edges[k].p1 = -1;
-					edges[k].p2 = -1;
-				}
-			}
-		};
-		vector<std::thread> threads;
-		for (int j = 0; j < nedge - 1; j++)
-			threads.emplace_back(std::thread(checkEdge, j));
-		for (auto& t : threads)
-			t.join();
-		threads.clear();
-#endif
 
 		// Form new triangles for the current point
 		// Skipping over any tagged edges.
@@ -245,9 +212,8 @@ int Triangulate(int nv, vector<XYZ>& pxyz, vector<ITRIANGLE>& v, int& ntri)
 			if (edges[j].p1 < 0 || edges[j].p2 < 0)
 				continue;
 
-			if (ntri >= trimax) {
+			if (ntri >= trimax)
 				break;
-			}
 
 			v[ntri].p1 = edges[j].p1;
 			v[ntri].p2 = edges[j].p2;
@@ -256,9 +222,8 @@ int Triangulate(int nv, vector<XYZ>& pxyz, vector<ITRIANGLE>& v, int& ntri)
 			ntri++;
 		}
 
-		if (ntri >= trimax) {
+		if (ntri >= trimax)
 			break;
-		}
 	}
 
 	// Remove triangles with supertriangle vertices
