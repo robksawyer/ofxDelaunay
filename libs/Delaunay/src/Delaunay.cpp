@@ -9,6 +9,10 @@
 
 #include "Delaunay.h"
 
+#include <algorithm>
+#include <thread>
+#include <vector>
+
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////
@@ -80,15 +84,11 @@ int CircumCircle(double xp, double yp, double x1, double y1, double x2,
 int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 {
 	int *complete = NULL;
-	IEDGE *edges = NULL;
-	IEDGE *p_EdgeTemp;
 	int nedge = 0;
 	int trimax, emax = 200;
 	int status = 0;
 
-	int inside;
-	int i, j, k;
-	double xp, yp, x1, y1, x2, y2, x3, y3, xc, yc, r;
+	double xc, yc, r;
 	double xmin, xmax, ymin, ymax, xmid, ymid;
 	double dx, dy, dmax;
 
@@ -96,20 +96,29 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 	trimax = 4 * nv;
 	complete = new int[trimax];
 	// Allocate memory for the edge list
-	edges = new IEDGE[emax];
+	vector<IEDGE> edges(emax);
 
 	// Find the maximum and minimum vertex bounds.
 	// This is to allow calculation of the bounding triangle
+#if 1
 	xmin = pxyz[0].x;
 	ymin = pxyz[0].y;
 	xmax = xmin;
 	ymax = ymin;
-	for (i = 1; i < nv; i++) {
+	for (int i = 1; i < nv; i++) {
 		if (pxyz[i].x < xmin) xmin = pxyz[i].x;
 		if (pxyz[i].x > xmax) xmax = pxyz[i].x;
 		if (pxyz[i].y < ymin) ymin = pxyz[i].y;
 		if (pxyz[i].y > ymax) ymax = pxyz[i].y;
 	}
+#else
+	auto x_minmax = std::minmax(pxyz, pxyz + nv - 1, [](const XYZ* v1, const XYZ* v2) { return (v1->x > v2->x); });
+	auto y_minmax = std::minmax(pxyz, pxyz + nv - 1, [](const XYZ* v1, const XYZ* v2) { return (v1->y > v2->y); });
+	xmin = x_minmax.first->x;
+	ymin = y_minmax.first->y;
+	xmax = x_minmax.second->x;
+	ymax = y_minmax.second->y;
+#endif
 	dx = xmax - xmin;
 	dy = ymax - ymin;
 	dmax = (dx > dy) ? dx : dy;
@@ -138,7 +147,8 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 
 
 	// Include each point one at a time into the existing mesh
-	for (i = 0; i < nv; i++) {
+	for (int i = 0; i < nv; i++) {
+		double xp, yp;
 		xp = pxyz[i].x;
 		yp = pxyz[i].y;
 		nedge = 0;
@@ -147,16 +157,17 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 		// If the point (xp,yp) lies inside the circumcircle then the
 		// three edges of that triangle are added to the edge buffer
 		// and that triangle is removed.
-		for (j = 0; j < ntri; j++) {
+		for (int j = 0; j < ntri; j++) {
 			if (complete[j])
 				continue;
+			double x1, y1, x2, y2, x3, y3, xc, yc, r;
 			x1 = pxyz[v[j].p1].x;
 			y1 = pxyz[v[j].p1].y;
 			x2 = pxyz[v[j].p2].x;
 			y2 = pxyz[v[j].p2].y;
 			x3 = pxyz[v[j].p3].x;
 			y3 = pxyz[v[j].p3].y;
-			inside = CircumCircle(xp, yp, x1, y1, x2, y2, x3, y3, xc, yc, r);
+			bool inside = CircumCircle(xp, yp, x1, y1, x2, y2, x3, y3, xc, yc, r);
 			//    if (xc + r < xp)
 
 			// Suggested
@@ -168,12 +179,7 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 				// Check that we haven't exceeded the edge list size
 				if (nedge + 3 >= emax) {
 					emax += 100;
-					p_EdgeTemp = new IEDGE[emax];
-					for (int i = 0; i < nedge; i++) { // Fix by John Bowman
-						p_EdgeTemp[i] = edges[i];
-					}
-					delete[]edges;
-					edges = p_EdgeTemp;
+					edges.resize(emax);
 				}
 
 				edges[nedge + 0].p1 = v[j].p1;
@@ -193,8 +199,9 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 		// Tag multiple edges
 		// Note: if all triangles are specified anticlockwise then all
 		// interior edges are opposite pointing in direction.
-		for (j = 0; j < nedge - 1; j++) {
-			for (k = j + 1; k < nedge; k++) {
+#if 1
+		for (int j = 0; j < nedge - 1; j++) {
+			for (int k = j + 1; k < nedge; k++) {
 				if ((edges[j].p1 == edges[k].p2) && (edges[j].p2 == edges[k].p1)) {
 					edges[j].p1 = -1;
 					edges[j].p2 = -1;
@@ -210,11 +217,37 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 				}
 			}
 		}
+#else
+		auto checkEdge = [&](const int& j)
+		{
+			for (int k = j + 1; k < nedge; k++) {
+				if ((edges[j].p1 == edges[k].p2) && (edges[j].p2 == edges[k].p1)) {
+					edges[j].p1 = -1;
+					edges[j].p2 = -1;
+					edges[k].p1 = -1;
+					edges[k].p2 = -1;
+				}
+				// Shouldn't need the following, see note above */
+				if ((edges[j].p1 == edges[k].p1) && (edges[j].p2 == edges[k].p2)) {
+					edges[j].p1 = -1;
+					edges[j].p2 = -1;
+					edges[k].p1 = -1;
+					edges[k].p2 = -1;
+				}
+			}
+		};
+		vector<std::thread> threads;
+		for (int j = 0; j < nedge - 1; j++) {
+			threads.emplace_back(std::thread(checkEdge, j));
+		}
+		for (auto& t : threads)
+			t.join();
+#endif
 
 		// Form new triangles for the current point
 		// Skipping over any tagged edges.
 		// All edges are arranged in clockwise order.
-		for (j = 0; j < nedge; j++) {
+		for (int j = 0; j < nedge; j++) {
 			if (edges[j].p1 < 0 || edges[j].p2 < 0)
 				continue;
 
@@ -236,7 +269,7 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 
 	// Remove triangles with supertriangle vertices
 	// These are triangles which have a vertex number greater than nv
-	for (i = 0; i < ntri; i++) {
+	for (int i = 0; i < ntri; i++) {
 		if (v[i].p1 >= nv || v[i].p2 >= nv || v[i].p3 >= nv) {
 			v[i] = v[ntri - 1];
 			ntri--;
@@ -244,7 +277,6 @@ int Triangulate(int nv, XYZ pxyz[], ITRIANGLE v[], int &ntri)
 		}
 	}
 
-	delete[] edges;
 	delete[] complete;
 	return 0;
 }
